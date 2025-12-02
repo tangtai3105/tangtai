@@ -1,0 +1,513 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>我的音乐 - 呱</title>
+    <link rel="stylesheet" href="theme.css">
+    <link rel="stylesheet" href="transitions.css">
+    <style>
+        /* --- 核心变量定义 --- */
+        :root {
+            --accent: #a78bfa; /* 紫色强调色 */
+            --glass-border: 1px solid rgba(255, 255, 255, 0.15);
+            --glass-bg: rgba(255, 255, 255, 0.05);
+            --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
+            --ease-smooth: cubic-bezier(0.33, 1, 0.68, 1);
+            
+            /* 动态背景变量 (JS控制) */
+            --d-bg1: rgba(15, 23, 42, 0.8);
+            --d-bg2: rgba(88, 28, 135, 0.5);
+        }
+
+        /* --- 噪点纹理 (Base64) --- */
+        .noise-overlay {
+            position: fixed; inset: 0; z-index: 2; pointer-events: none;
+            background-image: url('data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAADIAAAAyBAMAAADsEZWCAAAAGFBMVEUAAAA5OTkAAAAAAAAAAABMTExERERmZmZnOtWxAAAACHRSTlMAMwAqzMzM/wO30gAAAAFiS0dEAIgFHUgAAAAJcEhZcwAACxMAAAsTAQCanBgAAAAHdElNRQfmBwQXDzB3uN5dAAAAh0lEQVQ4y2NgQAX8DIwsCgwM7Ozs7OwsDgwMouwMDOw8DOw87Ozs7DwM7OwMDEwMnDzsAAIcnDzsAAI87AwM7DzsAAI87Ow8DOw8DAwcDAzsPAwM7DzsAAIcnDzsAAI87Ow8DOw8DAwcDAzsPAwM7DzsAAIcnDzsAAI87Ow8DOw8DAwcDDTwMAMA9yM5+3oB1QAAAAAASUVORK5CYII=');
+            opacity: 0.06;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", sans-serif;
+            color: white;
+            height: 100vh; width: 100vw; overflow: hidden;
+            background: #000;
+            margin: 0; padding: 0;
+        }
+
+        /* --- 1. 背景系统 --- */
+        /* 底层星轨图 */
+        #global-bg-img {
+            position: fixed; inset: 0; z-index: 0;
+            background-image: url('https://qcloud.dpfile.com/pc/sCaRH6uvGxsLpidobhtiE0DFvriVRP4joX-jyxuW2mQdWFMDZue1tv2d7Lpf3MXh.jpg');
+            background-size: cover; background-position: center;
+        }
+        /* 动态颜色遮罩 */
+        #dynamic-overlay {
+            position: fixed; inset: 0; z-index: 1;
+            background: linear-gradient(180deg, var(--d-bg1) 0%, var(--d-bg2) 100%);
+            transition: background 1s ease;
+            backdrop-filter: blur(40px); /* 让背景图模糊，突出玻璃感 */
+        }
+
+        /* --- 2. 容器与组件 --- */
+        #app-container {
+            position: relative; z-index: 10; width: 100%; height: 100%;
+        }
+
+        /* 返回按钮 */
+        .back-btn {
+            position: fixed; top: max(20px, env(safe-area-inset-top)); left: 20px; z-index: 50;
+            width: 40px; height: 40px; border-radius: 50%;
+            background: rgba(255,255,255,0.1);
+            border: var(--glass-border);
+            backdrop-filter: blur(10px);
+            display: flex; align-items: center; justify-content: center;
+            color: white; transition: 0.2s; text-decoration: none;
+        }
+        .back-btn:active { transform: scale(0.9); background: rgba(255,255,255,0.2); }
+
+        /* --- 3. 列表页视图 --- */
+        .home-view {
+            position: absolute; inset: 0;
+            display: flex; flex-direction: column;
+            padding-top: max(20px, env(safe-area-inset-top));
+            transition: transform 0.5s var(--ease-smooth), opacity 0.4s;
+            transform-origin: center 30%;
+        }
+        .home-view.scaled {
+            transform: scale(0.92) translateY(-20px); opacity: 0; pointer-events: none;
+        }
+
+        .header { padding: 12px 24px 12px 70px; }
+        .header h1 { font-size: 28px; font-weight: 800; text-shadow: 0 2px 10px rgba(0,0,0,0.5); margin: 0; }
+        .song-count { opacity: 0.7; font-size: 13px; margin-top: 4px; font-weight: 500; }
+
+        .song-list { flex: 1; overflow-y: auto; padding: 10px 20px 120px; }
+        .song-list::-webkit-scrollbar { display: none; }
+
+        /* 玻璃列表项 */
+        .song-row {
+            display: flex; align-items: center; padding: 10px; margin-bottom: 8px;
+            border-radius: 16px;
+            background: var(--glass-bg);
+            border: var(--glass-border);
+            backdrop-filter: blur(8px);
+            transition: all 0.2s; cursor: pointer;
+        }
+        .song-row:active { transform: scale(0.98); background: rgba(255,255,255,0.15); }
+        .song-row.active { 
+            background: rgba(255,255,255,0.2); 
+            border-color: rgba(255,255,255,0.4);
+            box-shadow: 0 0 20px rgba(167, 139, 250, 0.15);
+        }
+
+        .index-num { font-size: 14px; color: rgba(255,255,255,0.4); width: 24px; text-align: center; margin-right: 8px; font-variant-numeric: tabular-nums; }
+        
+        .thumb { width: 42px; height: 42px; border-radius: 8px; margin-right: 12px; overflow: hidden; background: #333; }
+        .thumb img { width: 100%; height: 100%; object-fit: cover; }
+        
+        .info { flex: 1; min-width: 0; }
+        .title { font-size: 15px; font-weight: 600; margin-bottom: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .artist { font-size: 12px; opacity: 0.6; }
+        
+        .active-icon { display: none; width: 18px; height: 18px; color: var(--accent); }
+        .song-row.active .active-icon { display: block; }
+
+        /* --- 4. 播放器页视图 (全屏磨砂) --- */
+        .player-view {
+            position: absolute; inset: 0; z-index: 20;
+            display: flex; flex-direction: column;
+            background: rgba(10, 10, 15, 0.6); 
+            backdrop-filter: blur(50px) saturate(150%);
+            -webkit-backdrop-filter: blur(50px) saturate(150%);
+            border-top: 1px solid rgba(255,255,255,0.1);
+            transform: translateY(100%);
+            transition: transform 0.5s cubic-bezier(0.2, 0.8, 0.2, 1);
+        }
+        .player-view.show { transform: translateY(0); }
+
+        .p-nav { height: 60px; display: flex; justify-content: center; align-items: center; margin-top: max(20px, env(safe-area-inset-top)); }
+        .pull-bar { width: 40px; height: 5px; background: rgba(255,255,255,0.3); border-radius: 100px; cursor: pointer; }
+
+        .p-cover-area { flex: 1; display: flex; align-items: center; justify-content: center; width: 100%; padding: 20px; }
+        .cover-box {
+            width: 75vw; max-width: 320px; aspect-ratio: 1/1; 
+            position: relative; transform: scale(0.9); transition: transform 0.6s var(--ease-spring);
+            border-radius: 20px;
+            box-shadow: 0 25px 50px -12px rgba(0,0,0,0.5);
+        }
+        .player-view.show.playing .cover-box { transform: scale(1); }
+        .cover-box img { width: 100%; height: 100%; object-fit: cover; border-radius: 20px; }
+
+        .p-controls-area { padding: 20px 32px 60px 32px; background: linear-gradient(to top, rgba(0,0,0,0.8), transparent); }
+
+        .track-info { margin-bottom: 30px; }
+        .track-title { font-size: 24px; font-weight: 700; margin-bottom: 6px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; text-shadow: 0 2px 10px rgba(0,0,0,0.5); }
+        .track-artist { font-size: 16px; opacity: 0.7; }
+
+        .progress-container { padding: 10px 0; cursor: pointer; }
+        .progress-bg { width: 100%; height: 4px; background: rgba(255,255,255,0.15); border-radius: 2px; }
+        .progress-fill { width: 0%; height: 100%; background: white; border-radius: 2px; position: relative; box-shadow: 0 0 10px rgba(255,255,255,0.5); }
+        
+        .time-labels { display: flex; justify-content: space-between; font-size: 12px; opacity: 0.6; margin-top: 8px; margin-bottom: 30px; }
+
+        .controls { display: flex; justify-content: space-between; align-items: center; }
+        .btn-side { width: 44px; height: 44px; border: none; background: transparent; color: rgba(255,255,255,0.6); display: flex; align-items: center; justify-content: center; cursor: pointer; }
+        .btn-side.active { color: var(--accent); opacity: 1; }
+        
+        .btn-play {
+            width: 70px; height: 70px; border-radius: 50%; 
+            background: white; color: black; border: none;
+            display: flex; align-items: center; justify-content: center;
+            box-shadow: 0 10px 30px rgba(255,255,255,0.2); cursor: pointer; transition: 0.2s;
+        }
+        .btn-play:active { transform: scale(0.92); }
+
+        /* 动画类 */
+        .fade-enter { opacity: 0; transform: translateY(10px); animation: fadeIn 0.5s ease forwards; }
+        @keyframes fadeIn { to { opacity: 1; transform: translateY(0); } }
+    </style>
+</head>
+<body>
+    <div id="global-bg-img"></div>
+    <div id="dynamic-overlay"></div>
+    <div class="noise-overlay"></div>
+
+    <div id="app-container">
+        <a href="index.html" class="back-btn">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor"><path d="M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z"/></svg>
+        </a>
+
+        <div class="home-view" id="homeView">
+            <div class="header">
+                <h1>我的歌单</h1>
+                <div class="song-count" id="songCount">加载中...</div>
+            </div>
+            <div class="song-list" id="listEl">
+                </div>
+        </div>
+
+        <div class="player-view" id="playerView">
+            <div class="p-nav" onclick="togglePlayer(false)">
+                <div class="pull-bar"></div>
+            </div>
+
+            <div class="p-cover-area">
+                <div class="cover-box">
+                    <img id="coverImg" src="" alt="封面">
+                </div>
+            </div>
+
+            <div class="p-controls-area">
+                <div class="track-info">
+                    <div class="track-title" id="trackTitle">--</div>
+                    <div class="track-artist" id="trackArtist">未知艺术家</div>
+                </div>
+
+                <div class="progress-container" onclick="seek(event)">
+                    <div class="progress-bg">
+                        <div class="progress-fill" id="pFill"></div>
+                    </div>
+                </div>
+                <div class="time-labels">
+                    <span id="currTime">0:00</span>
+                    <span id="totalTime">0:00</span>
+                </div>
+
+                <div class="controls">
+                    <button class="btn-side" id="modeBtn" onclick="toggleMode()">
+                        <svg id="icon-seq" style="display:block; width:24px; height:24px;" viewBox="0 0 24 24" fill="currentColor"><path d="M12 4V1L8 5l4 4V6c3.31 0 6 2.69 6 6 0 1.01-.25 1.97-.7 2.8l1.46 1.46C19.54 15.03 20 13.57 20 12c0-4.42-3.58-8-8-8zm0 14c-3.31 0-6-2.69-6-6 0-1.01.25-1.97.7-2.8L5.24 7.74C4.46 8.97 4 10.43 4 12c0 4.42 3.58 8 8 8v3l4-4-4-4v3z"/></svg>
+                        <svg id="icon-shuffle" style="display:none; width:24px; height:24px;" viewBox="0 0 24 24" fill="currentColor"><path d="M10.59 9.17L5.41 4 4 5.41l5.17 5.17 1.42-1.41zM14.5 4l2.04 2.04L4 18.59 5.41 20 17.96 7.46 20 9.5V4h-5.5zm.33 9.41l-1.41 1.41 3.13 3.13L14.5 20H20v-5.5l-2.04 2.04-3.13-3.13z"/></svg>
+                        <svg id="icon-one" style="display:none; width:24px; height:24px;" viewBox="0 0 24 24" fill="currentColor"><path d="M12 4V1L8 5l4 4V6c3.31 0 6 2.69 6 6 0 1.01-.25 1.97-.7 2.8l1.46 1.46C19.54 15.03 20 13.57 20 12c0-4.42-3.58-8-8-8zm0 14c-3.31 0-6-2.69-6-6 0-1.01.25-1.97.7-2.8L5.24 7.74C4.46 8.97 4 10.43 4 12c0 4.42 3.58 8 8 8v3l4-4-4-4v3z M10 15l2-2v4h-2v-2z"/></svg>
+                    </button>
+
+                    <button class="btn-side" onclick="changeSong(-1)">
+                        <svg style="width:30px; height:30px;" viewBox="0 0 24 24" fill="currentColor"><path d="M6 6h2v12H6zm3.5 6l8.5 6V6z"/></svg>
+                    </button>
+
+                    <button class="btn-play" onclick="togglePlay()">
+                        <svg id="playIcon" style="width:34px; height:34px; margin-left:4px;" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
+                        <svg id="pauseIcon" style="display:none; width:34px; height:34px;" viewBox="0 0 24 24" fill="currentColor"><path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/></svg>
+                    </button>
+
+                    <button class="btn-side" onclick="changeSong(1)">
+                        <svg style="width:30px; height:30px;" viewBox="0 0 24 24" fill="currentColor"><path d="M6 18l8.5-6L6 6v12zM16 6v12h2V6h-2z"/></svg>
+                    </button>
+
+                    <button class="btn-side" style="opacity:0.3; cursor:default">
+                        <svg style="width:24px; height:24px;" viewBox="0 0 24 24" fill="currentColor"><path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/></svg>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // --- 完整79首歌曲数据 (已更新指定歌曲的链接) ---
+        const defaultCover = "https://p2.music.126.net/6y-UleORITEDbvrOLV0Q8A==/5639395138885805.jpg";
+        const songs = [
+            { id: 1, title: "我想（feat.MC pharaoh)", url: "http://music.163.com/song/media/outer/url?id=431795577.mp3" },
+            { id: 2, title: "カーテンコール (feat. CONA)", url: "http://music.163.com/song/media/outer/url?id=2160017684.mp3" },
+            { id: 3, title: "第57次取消发送", url: "https://sf5-hl-cdn-tos.douyinstatic.com/obj/ies-music/7517633346261076787.mp3" },
+            { id: 4, title: "莫愁乡", url: "http://music.163.com/song/media/outer/url?id=2711834126.mp3" },
+            { id: 5, title: "罗生门（Follow）", url: "http://music.163.com/song/media/outer/url?id=1456890009.mp3" },
+            { id: 6, title: "一点", url: "https://sf3-cdn-tos.douyinstatic.com/obj/ies-music/7577697066302868275.mp3" },
+            { id: 7, title: "我爱你但是我要回家", url: "https://sf5-hl-cdn-tos.douyinstatic.com/obj/ies-music/7467781467815054130.mp3" },
+            { id: 8, title: "爱情讯息", url: "https://sf5-hl-cdn-tos.douyinstatic.com/obj/ies-music/7443467820501027593.mp3" },
+            { id: 9, title: "我看了56次日落", url: "http://music.163.com/song/media/outer/url?id=1930608504.mp3" },
+            { id: 10, title: "右向左", url: "http://music.163.com/song/media/outer/url?id=2111449652.mp3" },
+            { id: 11, title: "心似烟火", url: "http://music.163.com/song/media/outer/url?id=1399112638.mp3" },
+            { id: 12, title: "Heartbeat", url: "http://music.163.com/song/media/outer/url?id=473105747.mp3" },
+            { id: 13, title: "苦茶子", url: "http://music.163.com/song/media/outer/url?id=1922888354.mp3" },
+            { id: 14, title: "アイシテ", url: "http://music.163.com/song/media/outer/url?id=38689097.mp3" },
+            { id: 15, title: "落日告白", url: "http://music.163.com/song/media/outer/url?id=1948985508.mp3" },
+            { id: 16, title: "洋芋之恋", url: "http://music.163.com/song/media/outer/url?id=2641941034.mp3" },
+            { id: 17, title: "来电瑶", url: "https://lf9-music-east.douyinstatic.com/obj/ies-music-hj/7493168693954890553.mp3" },
+            { id: 18, title: "我怀念的", url: "https://sf5-hl-cdn-tos.douyinstatic.com/obj/ies-music/7337182114682653467.mp3" },
+            { id: 19, title: "高阶萌妹成长指南", url: "http://music.163.com/song/media/outer/url?id=1962060311.mp3" },
+            { id: 20, title: "言っちゃいけないことばっか浮かぶよな", url: "http://music.163.com/song/media/outer/url?id=2082330819.mp3" },
+            { id: 21, title: "BOW AND ARROW", url: "https://sf5-hl-ali-cdn-tos.douyinstatic.com/obj/ies-music/7458727782848236300.mp3" },
+            { id: 22, title: "ハート111", url: "http://music.163.com/song/media/outer/url?id=2141770031.mp3" },
+            { id: 23, title: "Cry For Me (feat. Ami)", url: "http://music.163.com/song/media/outer/url?id=2714451018.mp3" },
+            { id: 24, title: "听", url: "https://lf26-music-east.douyinstatic.com/obj/ies-music-hj/7476820751509654329.mp3" },
+            { id: 25, title: "不说 (原来是不说)", url: "https://sf5-hl-cdn-tos.douyinstatic.com/obj/ies-music/7368726937159748363.mp3" },
+            { id: 26, title: "鬼", url: "https://sf3-cdn-tos.douyinstatic.com/obj/ies-music/7324691384840047398.mp3" },
+            { id: 27, title: "Thank you for dears.", url: "http://music.163.com/song/media/outer/url?id=737955.mp3" },
+            { id: 28, title: "三年", url: "http://music.163.com/song/media/outer/url?id=1853517120.mp3" },
+            { id: 29, title: "阿司匹林", url: "https://sf5-hl-cdn-tos.douyinstatic.com/obj/ies-music/7428106673300278043.mp3" },
+            { id: 30, title: "了不起 (Live)", url: "http://music.163.com/song/media/outer/url?id=2053388751.mp3" },
+            { id: 31, title: "别叫我达芬奇 (Punk Version)", url: "https://sf5-hl-cdn-tos.douyinstatic.com/obj/ies-music/7448150401062292278.mp3" },
+            { id: 32, title: "My Friend", url: "https://lf26-music-east.douyinstatic.com/obj/ies-music-hj/7558201070095371068.mp3" },
+            { id: 33, title: "Sacred Play Secret Place", url: "http://music.163.com/song/media/outer/url?id=501468000.mp3" },
+            { id: 34, title: "Two Different Worlds", url: "http://music.163.com/song/media/outer/url?id=2142228282.mp3" },
+            { id: 35, title: "小猫坏事做尽！", url: "http://music.163.com/song/media/outer/url?id=2645306904.mp3" },
+            { id: 36, title: "The Cure", url: "https://lf26-music-east.douyinstatic.com/obj/ies-music-hj/7492767051808033593.mp3" },
+            { id: 37, title: "原来", url: "https://sf5-hl-cdn-tos.douyinstatic.com/obj/ies-music/7380355009764313895.mp3" },
+            { id: 38, title: "恋の才能", url: "http://music.163.com/song/media/outer/url?id=38689094.mp3" },
+            { id: 39, title: "コンパクトミラー", url: "http://music.163.com/song/media/outer/url?id=2097882935.mp3" },
+            { id: 40, title: "Lightning Moment（piano version）", url: "http://music.163.com/song/media/outer/url?id=1426244966.mp3" },
+            { id: 41, title: "RE Aoharu", url: "http://music.163.com/song/media/outer/url?id=2098478355.mp3" },
+            { id: 42, title: "听说我喜欢你", url: "http://music.163.com/song/media/outer/url?id=1960749853.mp3" },
+            { id: 43, title: "青春のアーカイブ", url: "http://music.163.com/song/media/outer/url?id=2600877270.mp3" },
+            { id: 44, title: "Who Says (Sped Up)", url: "http://music.163.com/song/media/outer/url?id=2109925043.mp3" },
+            { id: 45, title: "ありがとう、そしてこれからも", url: "https://sf6-cdn-tos.douyinstatic.com/obj/ies-music/7451619355093240602.mp3" },
+            { id: 46, title: "get me", url: "https://lf9-music-east.douyinstatic.com/obj/ies-music-hj/7412899071351900987.mp3" },
+            { id: 47, title: "星空叙爱曲", url: "http://music.163.com/song/media/outer/url?id=1483952682.mp3" },
+            { id: 48, title: "ありがとう、そしてこれからも", url: "https://sf6-cdn-tos.douyinstatic.com/obj/ies-music/7451619355093240602.mp3" },
+            { id: 49, title: "AKAGE [赤毛]", url: "http://music.163.com/song/media/outer/url?id=2694935874.mp3" },
+            { id: 50, title: "Checklist (feat. Chromeo)", url: "https://sf5-hl-cdn-tos.douyinstatic.com/obj/ies-music/7536927203976612618.mp3" },
+            { id: 51, title: "Popular", url: "https://sf5-hl-cdn-tos.douyinstatic.com/obj/ies-music/7336445522623859465.mp3" },
+            { id: 52, title: "唉 (pt.7)", url: "https://lf26-music-east.douyinstatic.com/obj/ies-music-hj/7428212504146234172.mp3" },
+            { id: 53, title: "Heartbeat(break)", url: "http://music.163.com/song/media/outer/url?id=2150327650.mp3" },
+            { id: 54, title: "Body", url: "http://music.163.com/song/media/outer/url?id=515816187.mp3" },
+            { id: 55, title: "Memories of Kindness", url: "http://music.163.com/song/media/outer/url?id=2064724623.mp3" },
+            { id: 56, title: "但", url: "https://sf5-hl-ali-cdn-tos.douyinstatic.com/obj/ies-music/7332850260949306148.mp3" },
+            { id: 57, title: "moves like jagger (Sped Up)", url: "http://music.163.com/song/media/outer/url?id=3319890195.mp3" },
+            { id: 58, title: "わたしたちのクエスト", url: "http://music.163.com/song/media/outer/url?id=2003336044.mp3" },
+            { id: 59, title: "浴室", url: "http://music.163.com/song/media/outer/url?id=483378334.mp3" },
+            /* 60 */ { id: 60, title: "death bed (coffee for your head)", url: "https://sf5-hl-cdn-tos.douyinstatic.com/obj/ies-music/7479295002670058290.mp3" },
+            { id: 61, title: "Clear (Shawn Wasabi Remix)", url: "http://music.163.com/song/media/outer/url?id=417833443.mp3" },
+            { id: 62, title: "Numb Little Bug (Piano Version)", url: "http://music.163.com/song/media/outer/url?id=1929280593.mp3" },
+            /* 63 */ { id: 63, title: "越来越不懂", url: "https://sf5-hl-cdn-tos.douyinstatic.com/obj/ies-music/7402472302497106697.mp3" },
+            { id: 64, title: "灵感菇 (灵感古力古力)", url: "http://music.163.com/song/media/outer/url?id=2676152220.mp3" },
+            /* 65 */ { id: 65, title: "IF YOU", url: "https://sf5-hl-ali-cdn-tos.douyinstatic.com/obj/ies-music/7415207051862772489.mp3" },
+            { id: 66, title: "蜘蛛糸モノポリー", url: "http://music.163.com/song/media/outer/url?id=26440351.mp3" },
+            { id: 67, title: "现在 你才不幸福", url: "http://music.163.com/song/media/outer/url?id=2036226011.mp3" },
+            /* 68 */ { id: 68, title: "ギターと孤独と蒼い惑星", url: "https://sf5-hl-cdn-tos.douyinstatic.com/obj/ies-music/7338413220184001307.mp3" },
+            /* 69 */ { id: 69, title: "天天天国地獄国 (feat. ななひら & P丸様。)", url: "https://lf9-music-east.douyinstatic.com/obj/ies-music-hj/7523552105521793849.mp3" },
+            /* 70 */ { id: 70, title: "All Girls Are The Same", url: "https://sf5-hl-cdn-tos.douyinstatic.com/obj/ies-music/7345446705912974118.mp3" },
+            /* 71 */ { id: 71, title: "カラノココロ", url: "https://lf9-music-east.douyinstatic.com/obj/ies-music-hj/7507282178380778299.mp3" },
+            { id: 72, title: "Wasted (Nightcore)", url: "http://music.163.com/song/media/outer/url?id=1968316652.mp3" },
+            { id: 73, title: "Maybe", url: "http://music.163.com/song/media/outer/url?id=1393412185.mp3" },
+            { id: 74, title: "可爱补习法", url: "http://music.163.com/song/media/outer/url?id=2115483560.mp3" },
+            { id: 75, title: "眷顾", url: "http://music.163.com/song/media/outer/url?id=2128822082.mp3" },
+            { id: 76, title: "That's OK", url: "http://music.163.com/song/media/outer/url?id=2149192384.mp3" },
+            { id: 77, title: "你走以后", url: "https://sf5-hl-cdn-tos.douyinstatic.com/obj/ies-music/7341817050332941095.mp3" },
+            /* 78 */ { id: 78, title: "工厂", url: "https://sf5-hl-cdn-tos.douyinstatic.com/obj/ies-music/7427863636657457931.mp3" },
+            { id: 79, title: "非酋 (王柏鸿 Remix)", url: "http://music.163.com/song/media/outer/url?id=494645466.mp3" }
+        ].map(s => ({ ...s, cover: defaultCover, artist: "未知" })); // 统一封面
+
+        let currentIndex = -1;
+        let isPlaying = false;
+        let playMode = 0; // 0:seq, 1:shuffle, 2:one
+        const audio = new Audio();
+
+        const dom = {
+            root: document.documentElement,
+            homeView: document.getElementById('homeView'),
+            playerView: document.getElementById('playerView'),
+            listEl: document.getElementById('listEl'),
+            coverImg: document.getElementById('coverImg'),
+            trackTitle: document.getElementById('trackTitle'),
+            trackArtist: document.getElementById('trackArtist'),
+            playIcon: document.getElementById('playIcon'),
+            pauseIcon: document.getElementById('pauseIcon'),
+            pFill: document.getElementById('pFill'),
+            currTime: document.getElementById('currTime'),
+            totalTime: document.getElementById('totalTime'),
+            songCount: document.getElementById('songCount')
+        };
+
+        function init() {
+            dom.songCount.innerText = `${songs.length} 首精选`;
+
+            // 渲染列表 (带淡入动画)
+            dom.listEl.innerHTML = songs.map((s, i) => `
+                <div class="song-row fade-enter" style="animation-delay: ${Math.min(i*0.05, 1.5)}s" id="song-${i}" onclick="playSong(${i})">
+                    <div class="index-num">${i+1}</div>
+                    <div class="thumb"><img src="${s.cover}" loading="lazy"></div>
+                    <div class="info">
+                        <div class="title">${s.title}</div>
+                        <div class="artist">${s.artist}</div>
+                    </div>
+                    <div class="active-icon" style="display:none;">
+                        <svg viewBox="0 0 24 24" fill="currentColor"><path d="M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z"/></svg>
+                    </div>
+                </div>
+            `).join('');
+
+            updateModeUI();
+            
+            // 音频事件
+            audio.addEventListener('timeupdate', updateProgress);
+            audio.addEventListener('ended', onSongEnd);
+            audio.addEventListener('error', (e) => { 
+                console.warn("Song Load Error, Skipping...", e);
+                if(isPlaying) setTimeout(() => changeSong(1), 1000); 
+            });
+        }
+
+        window.playSong = (index) => {
+            if(currentIndex === index) {
+                togglePlayer(true);
+                return;
+            }
+            
+            currentIndex = index;
+            const s = songs[index];
+            audio.src = s.url;
+            
+            updateUI(s);
+            togglePlayer(true);
+            
+            audio.play().then(() => setPlayState(true)).catch(console.error);
+        };
+
+        function updateUI(song) {
+            // 设置动态背景颜色 (随机微调以增加变化感)
+            const hue = Math.floor(Math.random() * 30) + 240; // Blue-Purple range
+            dom.root.style.setProperty('--d-bg1', `hsl(${hue}, 60%, 20%)`);
+            dom.root.style.setProperty('--d-bg2', `hsl(${hue + 20}, 70%, 15%)`);
+
+            dom.trackTitle.innerText = song.title;
+            dom.trackArtist.innerText = song.artist;
+            dom.coverImg.src = song.cover;
+
+            // 列表高亮处理
+            document.querySelectorAll('.song-row').forEach(el => {
+                el.classList.remove('active');
+                el.querySelector('.active-icon').style.display = 'none';
+            });
+            const row = document.getElementById(`song-${currentIndex}`);
+            if(row) {
+                row.classList.add('active');
+                row.querySelector('.active-icon').style.display = 'block';
+            }
+        }
+
+        window.togglePlayer = (show) => {
+            if(show) {
+                dom.playerView.classList.add('show');
+                dom.homeView.classList.add('scaled');
+            } else {
+                dom.playerView.classList.remove('show');
+                dom.homeView.classList.remove('scaled');
+            }
+        };
+
+        window.togglePlay = () => {
+            if(currentIndex === -1 && songs.length > 0) { playSong(0); return; }
+            setPlayState(!isPlaying);
+        };
+
+        function setPlayState(state) {
+            isPlaying = state;
+            if(state) {
+                dom.playIcon.style.display = 'none';
+                dom.pauseIcon.style.display = 'block';
+                dom.playerView.classList.add('playing');
+                audio.play();
+            } else {
+                dom.playIcon.style.display = 'block';
+                dom.pauseIcon.style.display = 'none';
+                dom.playerView.classList.remove('playing');
+                audio.pause();
+            }
+        }
+
+        // --- 逻辑控制 (模式/切歌) ---
+        window.toggleMode = () => {
+            playMode = (playMode + 1) % 3;
+            updateModeUI();
+        };
+
+        function updateModeUI() {
+            const icons = ['icon-seq', 'icon-shuffle', 'icon-one'];
+            const btn = document.getElementById('modeBtn');
+            
+            icons.forEach((id, idx) => {
+                document.getElementById(id).style.display = (idx === playMode) ? 'block' : 'none';
+            });
+            
+            if(playMode !== 0) btn.classList.add('active');
+            else btn.classList.remove('active');
+        }
+
+        function onSongEnd() {
+            if(playMode === 2) { audio.currentTime = 0; audio.play(); }
+            else if(playMode === 1) playRandom();
+            else changeSong(1);
+        }
+
+        window.changeSong = (dir) => {
+            if(playMode === 1 && dir !== 0) playRandom();
+            else {
+                let next = (currentIndex + dir + songs.length) % songs.length;
+                playSong(next);
+            }
+        };
+
+        function playRandom() {
+            let next;
+            do { next = Math.floor(Math.random() * songs.length); } 
+            while (next === currentIndex && songs.length > 1);
+            playSong(next);
+        }
+
+        // --- 进度条逻辑 ---
+        function updateProgress() {
+            if(!audio.duration) return;
+            const pct = (audio.currentTime / audio.duration) * 100;
+            dom.pFill.style.width = `${pct}%`;
+            dom.currTime.innerText = fmtTime(audio.currentTime);
+            dom.totalTime.innerText = fmtTime(audio.duration);
+        }
+
+        window.seek = (e) => {
+            if(!audio.duration) return;
+            const rect = e.currentTarget.getBoundingClientRect();
+            const pct = (e.clientX - rect.left) / rect.width;
+            audio.currentTime = pct * audio.duration;
+        };
+
+        function fmtTime(s) {
+            const m = Math.floor(s/60);
+            const sec = Math.floor(s%60);
+            return `${m}:${sec.toString().padStart(2,'0')}`;
+        }
+
+        init();
+    </script>
+</body>
+</html>

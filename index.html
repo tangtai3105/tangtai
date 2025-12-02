@@ -1,0 +1,108 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>个人网站 - 呱</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="theme.css">
+    <link rel="stylesheet" href="transitions.css">
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body class="bg-gradient-to-br from-blue-50 to-purple-50 min-h-screen">
+    <div id="page-container" class="fade-enter">
+        <!-- 星轨图片背景 -->
+        <div class="fixed inset-0 z-[-1] overflow-hidden">
+            <img 
+                src="https://qcloud.dpfile.com/pc/sCaRH6uvGxsLpidobhtiE0DFvriVRP4joX-jyxuW2mQdWFMDZue1tv2d7Lpf3MXh.jpg" 
+                alt="星轨背景" 
+                class="absolute w-full h-full object-cover"
+            >
+            <!-- 半透明遮罩，增强文字可读性 -->
+            <div class="absolute inset-0 bg-black/30"></div>
+        </div>
+
+        <!-- 导航栏 -->
+        <nav class="nav-glass fixed top-0 left-0 right-0 z-50 transition-all duration-300">
+            <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+                <div class="flex justify-between h-16">
+                    <div class="flex items-center">
+                        <span class="text-xl font-bold text-white">呱</span>
+                    </div>
+                    <div class="flex items-center space-x-4">
+                        <a href="index.html" class="text-white hover:text-purple-600 transition-colors duration-200 text-shadow">首页</a>
+                        <a href="comfort1.html" class="text-white hover:text-purple-600 transition-colors duration-200 text-shadow">天天开心</a>
+                        <a href="playlist.html" class="bg-purple-600 text-white px-4 py-2 rounded-full hover:bg-purple-700 transition-colors duration-200 text-shadow">歌单</a>
+                    </div>
+                </div>
+            </div>
+        </nav>
+
+        <!-- 主内容 -->
+        <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-24 pb-16">
+            <!-- 个人信息区域 -->
+            <section class="flex flex-col md:flex-row items-center gap-8 mb-16">
+                <!-- 头像区域 -->
+                <div class="w-48 h-48 rounded-full overflow-hidden shadow-lg border-4 border-white fade-in-element delay-100">
+                    <img 
+                        src="https://i0.hdslb.com/bfs/new_dyn/138dda976d2f2d9ef013c591908b5e4229140710.png@1192w.webp" 
+                        alt="头像" 
+                        class="w-full h-full object-cover transition-transform duration-500 hover:scale-110"
+                        loading="lazy"
+                    >
+                </div>
+                
+                <!-- 个人信息 -->
+                <div class="text-center md:text-left">
+                    <h1 class="text-5xl font-bold text-white mb-4 drop-shadow-lg fade-in-element delay-200">呱</h1>
+                    <div class="text-xl text-white mb-6 fade-in-element delay-300">
+                        <p id="timeInfo" class="text-white font-medium drop-shadow-md"></p>
+                    </div>
+                    <div class="glass-morphism p-6 max-w-lg fade-in-element delay-400">
+                        <h2 class="text-xl font-semibold text-white mb-3 text-shadow">个人简介</h2>
+                        <p class="text-white leading-relaxed mb-4 text-shadow">
+                            大家好，我是呱。这是我的个人网站，
+                            在这里你可以了解我的基本信息。
+                        </p>
+                        
+                        <!-- 跳转按钮 -->
+                        <div class="flex justify-center">
+                            <a href="playlist.html" class="bg-gradient-to-r from-purple-600 to-indigo-600 text-white px-6 py-3 rounded-full font-semibold hover:from-purple-700 hover:to-indigo-700 transition-all duration-300 transform hover:scale-105 shadow-md">
+                                查看我的歌单
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            </section>
+        </main>
+
+        
+        
+        <!-- 关于我部分 - 移到网页最下方 -->
+        <section class="glass-morphism rounded-2xl p-10 max-w-4xl mx-auto mb-6">
+            <h2 class="text-3xl font-bold text-white mb-8 text-center text-shadow">关于我</h2>
+            <div class="max-w-2xl mx-auto">
+                <h3 class="text-xl font-semibold text-white mb-4 text-center text-shadow">人生感悟</h3>
+                <p class="text-white leading-relaxed text-center text-2xl font-light italic text-shadow">
+                    我从不害怕电影会散场，因为陪我看完这场电影的人是你
+                </p>
+            </div>
+        </section>
+        
+        <!-- 页脚 -->
+        <footer class="nav-glass py-6 text-white">
+            <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center text-white text-sm text-shadow">
+                <p>© 2025 呱的网站 | Is me</p>
+                <p class="mt-2">
+                    <span class="inline-block glass-morphism px-6 py-2 rounded-full">
+                        <span class="text-white font-medium">总访问人数：</span>
+                        <span id="visitCount" class="text-white font-bold">0</span>
+                    </span>
+                </p>
+            </div>
+        </footer>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html>
